@@ -11,6 +11,19 @@
   <strong>EXFOLIATE! EXFOLIATE!</strong>
 </p>
 
+<div align="center">
+
+[![Telemetry GA Version](https://img.shields.io/badge/GA-Telemetry%20Version-6366f1?style=for-the-badge)](https://github.com/openclaw_mogai)
+[![Build Status](https://img.shields.io/badge/build-verified-success-brightgreen?style=for-the-badge)](docs/llm-telemetry-guide.md)
+[![Statistics Enabled](https://img.shields.io/badge/Statistics-Enabled-blue?style=for-the-badge)](README.md#llm-telemetry-statistics)
+
+**🚀 This is the OpenClaw 2026.03.21 GA release with built-in LLM telemetry.**  
+Every model interaction is automatically logged with TTFT, TPOT, token counts, and full content for performance analysis.
+
+[Quick Start](#-from-source-telemetry-ga-version---20260321) | [Statistics Guide](#-llm-telemetry-statistics) | [Full Telemetry Docs](docs/llm-telemetry-guide.md)
+
+</div>
+
 <p align="center">
   <a href="https://github.com/openclaw/openclaw/actions/workflows/ci.yml?branch=main"><img src="https://img.shields.io/github/actions/workflow/status/openclaw/openclaw/ci.yml?branch=main&style=for-the-badge" alt="CI status"></a>
   <a href="https://github.com/openclaw/openclaw/releases"><img src="https://img.shields.io/github/v/release/openclaw/openclaw?include_prereleases&style=for-the-badge" alt="GitHub release"></a>
@@ -89,7 +102,248 @@ Upgrading? [Updating guide](https://docs.openclaw.ai/install/updating) (and run 
 Switch channels (git + npm): `openclaw update --channel stable|beta|dev`.
 Details: [Development channels](https://docs.openclaw.ai/install/development-channels).
 
-## From source (development)
+## 🚀 From source (Telemetry GA version - 2026.03.21)
+
+This version includes **LLM Telemetry** that automatically records TTFT, TPOT, token counts, and full input/output content for every model interaction.
+
+### Environment requirements
+
+- **OS**: Linux (tested on Ubuntu 22.04+)
+- **Node.js**: 22+ (24 recommended)
+- **pnpm**: installed
+- **Source path**: `/home/bob/openclaw` (or wherever you clone this repository)
+
+### One-time build and installation
+
+#### Step 1: Install dependencies and build
+
+```bash
+cd /home/bob/openclaw  # or your clone location
+pnpm install
+node scripts/tsdown-build.mjs
+```
+
+Expected output: `BUILD: 0` (no errors)
+
+Verify telemetry code is compiled in:
+
+```bash
+grep -rl "OPENCLAW_LLM_TELEMETRY" /home/bob/openclaw/dist/*.js
+# Should output at least one auth-profiles-*.js file path
+```
+
+#### Step 2: Stop any running gateway processes
+
+```bash
+pkill -9 -f "openclaw-gateway" 2>/dev/null
+pkill -9 -f "node.*openclaw.mjs gateway" 2>/dev/null
+systemctl --user stop openclaw-gateway.service 2>/dev/null
+sleep 3
+rm -f ~/.openclaw/gateway.lock
+```
+
+#### Step 3: Configure systemd service (telemetry mode)
+
+Create/replace `~/.config/systemd/user/openclaw-gateway.service` with:
+
+```ini
+[Unit]
+Description=OpenClaw Gateway (v2026.3.14+telemetry)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/node /home/bob/openclaw/openclaw.mjs gateway --port 18789
+WorkingDirectory=/home/bob/openclaw
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+TimeoutStartSec=60
+SuccessExitStatus=0 143
+KillMode=control-group
+Environment=HOME=/home/bob
+Environment=TMPDIR=/tmp
+Environment=PATH=/home/bob/.local/bin:/home/bob/.npm-global/bin:/home/bob/bin:/home/bob/.volta/bin:/home/bob/.asdf/shims:/home/bob/.bun/bin:/home/bob/.nvm/current/bin:/home/bob/.fnm/current/bin:/home/bob/.local/share/pnpm:/usr/local/bin:/usr/bin:/bin
+Environment=OPENCLAW_GATEWAY_PORT=18789
+Environment=OPENCLAW_SYSTEMD_UNIT=openclaw-gateway.service
+Environment="OPENCLAW_WINDOW_TASK_NAME=OpenClaw Gateway"
+Environment=OPENCLAW_SERVICE_MARKER=openclaw
+Environment=OPENCLAW_SERVICE_KIND=gateway
+Environment=OPENCLAW_SERVICE_VERSION=2026.3.14
+Environment=OPENCLAW_RAW_STREAM=1
+Environment=OPENCLAW_RAW_STREAM_PATH=/home/bob/.openclaw/logs/raw-stream.jsonl
+Environment=OPENCLAW_LLM_TELEMETRY=true
+Environment=OPENCLAW_LLM_TELEMETRY_FILE=/home/bob/.openclaw/logs/llm-telemetry.jsonl
+
+[Install]
+WantedBy=default.target
+```
+
+Or write it with one command:
+
+```bash
+cat > ~/.config/systemd/user/openclaw-gateway.service << 'EOF'
+[Unit]
+Description=OpenClaw Gateway (v2026.3.14+telemetry)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/node /home/bob/openclaw/openclaw.mjs gateway --port 18789
+WorkingDirectory=/home/bob/openclaw
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+TimeoutStartSec=60
+SuccessExitStatus=0 143
+KillMode=control-group
+Environment=HOME=/home/bob
+Environment=TMPDIR=/tmp
+Environment=PATH=/home/bob/.local/bin:/home/bob/.npm-global/bin:/home/bob/bin:/home/bob/.volta/bin:/home/bob/.asdf/shims:/home/bob/.bun/bin:/home/bob/.nvm/current/bin:/home/bob/.fnm/current/bin:/home/bob/.local/share/pnpm:/usr/local/bin:/usr/bin:/bin
+Environment=OPENCLAW_GATEWAY_PORT=18789
+Environment=OPENCLAW_SYSTEMD_UNIT=openclaw-gateway.service
+Environment="OPENCLAW_WINDOWS_TASK_NAME=OpenClaw Gateway"
+Environment=OPENCLAW_SERVICE_MARKER=openclaw
+Environment=OPENCLAW_SERVICE_KIND=gateway
+Environment=OPENCLAW_SERVICE_VERSION=2026.3.14
+Environment=OPENCLAW_RAW_STREAM=1
+Environment=OPENCLAW_RAW_STREAM_PATH=/home/bob/.openclaw/logs/raw-stream.jsonl
+Environment=OPENCLAW_LLM_TELEMETRY=true
+Environment=OPENCLAW_LLM_TELEMETRY_FILE=/home/bob/.openclaw/logs/llm-telemetry.jsonl
+
+[Install]
+WantedBy=default.target
+EOF
+```
+
+#### Step 4: Reload systemd and start the service
+
+```bash
+systemctl --user daemon-reload
+systemctl --user start openclaw-gateway.service
+```
+
+Wait ~30 seconds for the gateway to initialize, then verify:
+
+```bash
+systemctl --user status openclaw-gateway.service
+# Should show Active: active (running)
+
+# Verify telemetry environment variables are loaded:
+GATEWAY_PID=$(systemctl --user show -p MainPID --value openclaw-gateway.service)
+cat /proc/$GATEWAY_PID/environ | tr '\0' '\n' | grep OPENCLAW_LLM_TELEMETRY
+# Expected output:
+# OPENCLAW_LLM_TELEMETRY=true
+# OPENCLAW_LLM_TELEMETRY_FILE=/home/bob/.openclaw/logs/llm-telemetry.jsonl
+```
+
+**That's it!** After this one-time setup, the gateway runs automatically with telemetry enabled. No further action needed — use OpenClaw normally via Web UI, CLI, or any connected channel.
+
+### Updating after code changes
+
+If you modify the source code:
+
+```bash
+cd /home/bob/openclaw
+node scripts/tsdown-build.mjs
+systemctl --user restart openclaw-gateway.service
+```
+
+---
+
+## 📊 LLM Telemetry Statistics
+
+### Data file location
+
+All telemetry data is appended in **JSONL format** to:
+
+```
+~/.openclaw/logs/llm-telemetry.jsonl
+```
+
+Each line is a JSON object representing one LLM call (multiple calls per conversation are stored separately, identified by `iterationIndex`).
+
+### Real-time monitoring
+
+Tail the file and see metrics immediately after each LLM call:
+
+```bash
+tail -f ~/.openclaw/logs/llm-telemetry.jsonl | python3 -c "
+import json, sys
+for line in sys.stdin:
+    r = json.loads(line)
+    print(f'[轮{r[\"iterationIndex\"]}] TTFT={r[\"ttftMs\"]}ms  TPOT={r[\"tpotMs\"]}ms/tok  输入={r[\"inputTokens\"]}tok  输出={r[\"outputTokens\"]}tok  停止={r[\"stopReason\"]}')
+    print(f'  输出内容: {repr(r[\"outputContent\"][:150])}')
+    sys.stdout.flush()
+"
+```
+
+### View the latest full record
+
+```bash
+tail -1 ~/.openclaw/logs/llm-telemetry.jsonl | python3 -m json.tool
+```
+
+### Summary statistics (all-time)
+
+```bash
+cat ~/.openclaw/logs/llm-telemetry.jsonl | python3 -c "
+import json, sys
+records = [json.loads(l) for l in sys.stdin]
+print(f'Total records: {len(records)}')
+ttfts = [r['ttftMs'] for r in records if r['ttftMs'] is not None]
+tpots = [r['tpotMs'] for r in records if r['tpotMs'] is not None]
+in_tok = [r['inputTokens'] for r in records if r['inputTokens'] is not None]
+out_tok = [r['outputTokens'] for r in records if r['outputTokens'] is not None]
+durs = [r['durationMs'] for r in records if r['durationMs'] is not None]
+if ttfts:
+    print(f'TTFT: avg {sum(ttfts)/len(ttfts):.0f}ms  min {min(ttfts)}ms  max {max(ttfts)}ms')
+if tpots:
+    print(f'TPOT: avg {sum(tpots)/len(tpots):.2f} ms/token')
+if durs:
+    print(f'Duration: avg {sum(durs)/len(durs):.0f}ms  max {max(durs)}ms')
+if in_tok:
+    print(f'Total input tokens: {sum(in_tok):,}')
+if out_tok:
+    print(f'Total output tokens: {sum(out_tok):,}')
+stops = {}
+for r in records:
+    stops[r['stopReason']] = stops.get(r['stopReason'], 0) + 1
+print(f'Stop reasons: {stops}')
+"
+```
+
+### Export to CSV
+
+```bash
+cat ~/.openclaw/logs/llm-telemetry.jsonl | python3 -c "
+import json, sys, csv
+records = [json.loads(l) for l in sys.stdin]
+if not records: sys.exit()
+fields = ['ts','sessionKey','provider','modelId','iterationIndex',
+          'ttftMs','tpotMs','durationMs','inputTokens','outputTokens',
+          'cacheReadTokens','cacheWriteTokens','stopReason']
+w = csv.DictWriter(sys.stdout, fieldnames=fields, extrasaction='ignore')
+w.writeheader()
+w.writerows(records)
+" > ~/llm-telemetry-export.csv
+echo "Exported to ~/llm-telemetry-export.csv"
+```
+
+### Clear or backup data
+
+```bash
+# Backup with timestamp
+cp ~/.openclaw/logs/llm-telemetry.jsonl \
+   ~/.openclaw/logs/llm-telemetry-$(date +%Y%m%d-%H%M%S).jsonl
+
+# Clear (start fresh)
+> ~/.openclaw/logs/llm-telemetry.jsonl
+```
+
+---
+
+### From source (development)
 
 Prefer `pnpm` for builds from source. Bun is optional for running TypeScript directly.
 
